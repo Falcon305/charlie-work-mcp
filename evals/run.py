@@ -73,7 +73,7 @@ def _naive_context(root: str) -> str:
 
 def main() -> int:
     root = _stage()
-    items = scan_repo(root)
+    items = scan_repo(root, online=False)
     found_kinds = {i.kind for i in items}
 
     recalled = EXPECTED_KINDS & found_kinds
@@ -83,7 +83,7 @@ def main() -> int:
     top = items[0] if items else None
     cert_is_top = top is not None and top.kind == ToilKind.expiring_cert
 
-    page = charlie_scan_toil(repo=root, mode="plain", limit=DEFAULT_PAGE_SIZE)
+    page = charlie_scan_toil(repo=root, mode="plain", limit=DEFAULT_PAGE_SIZE, online=False)
     synthesized = json.dumps([i.model_dump() for i in page.items])
     naive = _naive_context(root)
     naive_tokens = _tokens(naive)

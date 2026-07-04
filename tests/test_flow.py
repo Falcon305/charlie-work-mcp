@@ -19,11 +19,11 @@ def test_scan_repo_ranks_and_filters(tmp_path):
     root = str(tmp_path)
     _write(root, "app.py", "def f():\n    breakpoint()  # TODO fix\n")
     _write(root, "test_x.py", "@pytest.mark.skip\ndef test_x():\n    pass\n")
-    items = scan_repo(root)
+    items = scan_repo(root, online=False)
     assert items
     priorities = [i.priority for i in items]
     assert priorities == sorted(priorities, reverse=True)
-    only_todo = scan_repo(root, kinds=[ToilKind.todo_rot.value])
+    only_todo = scan_repo(root, kinds=[ToilKind.todo_rot.value], online=False)
     assert only_todo and all(i.kind == ToilKind.todo_rot for i in only_todo)
 
 

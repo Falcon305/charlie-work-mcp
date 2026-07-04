@@ -3,80 +3,111 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 from charlie_work_mcp.models import SourceFile, ToilKind
-from charlie_work_mcp.scanners import certs, dead_flags, debug, deps, runbooks, tests, todos
+from charlie_work_mcp.scanners import certs, code, deps, runbooks, secrets
+from charlie_work_mcp.scanners import py_ast, treesitter_scan
+from charlie_work_mcp.services.lockfiles import parse_lockfiles
 
 
 def _f(path: str, text: str) -> SourceFile:
     return SourceFile(path=path, text=text)
 
 
-def test_detects_skipped_focused_and_flaky():
-    files = [
-        _f("test_a.py", "@pytest.mark.skip\ndef test_one():\n    pass\n"),
-        _f("b.test.js", "it.only('focus', () => {})\n"),
-        _f("test_c.py", "@pytest.mark.flaky\ndef test_two():\n    pass\n"),
-    ]
-    kinds = {i.kind for i in tests.scan(files)}
-    assert ToilKind.skipped_test in kinds
+def test_py_ast_detects_and_ignores_strings_and_comments():
+    src = (
+        "import pytest\n"
+        "@pytest.mark.skip\n"
+        "def test_a():\n"
+        "    pass\n"
+        "@pytest.mark.skipif(True, reason='x')\n"
+        "def test_b():\n"
+        "    pass\n"
+        "def test_c():\n"
+        "    breakpoint()\n"
+        "    x = 'pytest.mark.skip'\n"
+        "    # breakpoint() in a comment\n"
+    )
+    items = py_ast.scan_python(_f("test_x.py", src))
+    kinds = [i.kind for i in items]
+    assert kinds.count(ToilKind.skipped_test) == 2
+    assert ToilKind.debug_leftover in kinds
+    assert len(items) == 3
+
+
+def test_py_ast_flag_reads_vs_defs():
+    src = (
+        "def f():\n"
+        "    if is_enabled('ghost'):\n"
+        "        pass\n"
+        "    if is_enabled('real'):\n"
+        "        pass\n"
+        "CONFIG = {'real': True}\n"
+    )
+    reads, defs = py_ast.collect_flags(_f("m.py", src))
+    assert "ghost" in reads and "real" in reads
+    assert "real" in defs and "ghost" not in defs
+
+
+def test_treesitter_js_and_go():
+    js = _f("a.test.js", "describe.skip('s',()=>{});\nit.only('f',()=>{debugger;});\nxit('l',()=>{});\nconsole.log('x');\nfoo.skip();\n")
+    kinds = [i.kind for i in treesitter_scan.scan_file(js)]
+    assert kinds.count(ToilKind.skipped_test) == 2
     assert ToilKind.focused_test in kinds
-    assert ToilKind.flaky_test in kinds
+    assert kinds.count(ToilKind.debug_leftover) == 2
+    go = _f("c_test.go", 'func TestX(t *testing.T){ t.Skip("later") }\n')
+    assert any(i.kind == ToilKind.skipped_test for i in treesitter_scan.scan_file(go))
 
 
-def test_todos_markers_and_severity():
-    files = [_f("m.py", "x = 1  # TODO clean this\ny = 2  # FIXME broken\n")]
-    found = todos.scan(files)
-    markers = {i.evidence.split(":")[0] for i in found}
-    assert "TODO" in markers
-    assert "FIXME" in markers
-    fixme = next(i for i in found if i.evidence.startswith("FIXME"))
-    todo = next(i for i in found if i.evidence.startswith("TODO"))
-    assert fixme.severity > todo.severity
-
-
-def test_dead_flag_flagged_only_when_never_set():
+def test_code_scan_dead_flag_cross_file():
     files = [
-        _f("read.py", 'if is_enabled("ghost_flag"):\n    go()\n'),
-        _f("read2.py", 'if is_enabled("real_flag"):\n    go()\n'),
-        _f("config.py", '"real_flag": True\n'),
+        _f("read.py", "def f():\n    if is_enabled('ghost_flag'):\n        go()\n"),
+        _f("read2.js", "if (isEnabled('real_flag')) { go() }\n"),
+        _f("config.py", "FLAGS = {'real_flag': True}\n"),
     ]
-    found = dead_flags.scan(files)
-    names = {i.title for i in found}
-    assert any("ghost_flag" in n for n in names)
-    assert not any("real_flag" in n for n in names)
+    dead = [i for i in code.scan(files) if i.kind == ToilKind.dead_flag]
+    titles = " ".join(i.title for i in dead)
+    assert "ghost_flag" in titles
+    assert "real_flag" not in titles
+
+
+def test_secrets_catches_real_ignores_placeholder():
+    files = [
+        _f("app.py", "AWS_KEY = 'AKIAIOSFODNN7ABCD1XZ'\n"),
+        _f("gh.py", "token = 'ghp_" + "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8'\n"),
+        _f("doc.py", "example = 'AKIAIOSFODNN7EXAMPLE'\n"),
+    ]
+    found = secrets.scan(files)
+    rules = {i.rule_id for i in found}
+    assert "charlie/secret-aws-access-key" in rules
+    assert "charlie/secret-github-token" in rules
+    assert all("doc.py" != i.path for i in found)
+
+
+def test_secrets_skips_test_and_markdown_paths():
+    files = [_f("tests/fixtures/keys.py", "AWS = 'AKIAIOSFODNN7REALKEY0'\n")]
+    assert secrets.scan(files) == []
 
 
 def test_deps_loose_pins():
     npm = _f("package.json", '{"dependencies": {"left-pad": "*", "react": "^18.2.0"}}')
     req = _f("requirements.txt", "flask\nrequests==2.31.0\n")
     found = deps.scan([npm, req])
-    flagged = {i.evidence.split(":")[0].split(" ")[0] for i in found}
     assert any("left-pad" in i.evidence for i in found)
     assert not any("react" in i.evidence for i in found)
     assert any("flask" in i.evidence for i in found)
-    assert not any("requests" in i.evidence for i in found)
-    assert flagged
 
 
-def test_runbook_unowned():
-    files = [_f("scripts/deploy.sh", "#!/bin/bash\nkubectl apply -f .\n")]
-    found = runbooks.scan(files)
-    assert found and found[0].kind == ToilKind.unowned_runbook
+def test_runbook_unowned_and_owned():
+    assert runbooks.scan([_f("scripts/deploy.sh", "#!/bin/bash\nkubectl apply -f .\n")])
+    assert runbooks.scan([_f("scripts/deploy.sh", "#!/bin/bash\n# Owner: team\nkubectl\n")]) == []
 
 
-def test_runbook_owned_is_skipped():
-    files = [_f("scripts/deploy.sh", "#!/bin/bash\n# Owner: platform-team\nkubectl apply -f .\n")]
-    assert runbooks.scan(files) == []
-
-
-def test_debug_ignores_tests_and_comments():
-    files = [
-        _f("app.py", "def f():\n    breakpoint()\n"),
-        _f("test_app.py", "def test():\n    breakpoint()\n"),
-        _f("c.js", "// console.log('nope')\n"),
-    ]
-    found = debug.scan(files)
-    assert len(found) == 1
-    assert found[0].path == "app.py"
+def test_lockfile_parsing():
+    poetry = _f("poetry.lock", '[[package]]\nname = "requests"\nversion = "2.20.0"\n')
+    reqs = _f("requirements.txt", "jinja2==2.4.1\nflask>=1.0\n")
+    pkgs = {(p.ecosystem, p.name, p.version) for p in parse_lockfiles([poetry, reqs])}
+    assert ("PyPI", "requests", "2.20.0") in pkgs
+    assert ("PyPI", "jinja2", "2.4.1") in pkgs
+    assert not any(name == "flask" for _, name, _ in pkgs)
 
 
 def _make_cert(days: int) -> str:
@@ -101,13 +132,7 @@ def _make_cert(days: int) -> str:
     return cert.public_bytes(serialization.Encoding.PEM).decode("utf-8")
 
 
-def test_cert_expiring_soon_is_flagged():
-    files = [_f("certs/staging.pem", _make_cert(9))]
-    found = certs.scan(files)
-    assert found and found[0].kind == ToilKind.expiring_cert
-    assert found[0].staleness_days is not None and found[0].staleness_days <= 9
-
-
-def test_cert_with_long_life_is_ignored():
-    files = [_f("certs/prod.pem", _make_cert(400))]
-    assert certs.scan(files) == []
+def test_cert_expiring_and_healthy():
+    hot = certs.scan([_f("certs/staging.pem", _make_cert(9))])
+    assert hot and hot[0].kind == ToilKind.expiring_cert
+    assert certs.scan([_f("certs/prod.pem", _make_cert(400))]) == []

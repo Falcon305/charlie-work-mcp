@@ -6,7 +6,7 @@ from .constants import CERT_WARN_DAYS
 from .fs import walk_repo
 from .gitmeta import blame_line_times, is_git_repo
 from .models import ToilItem, ToilKind
-from .scanners import run_all
+from .scanners import dep_health, run_all
 
 _BLAME_ENRICHED = {ToilKind.todo_rot, ToilKind.debug_leftover}
 _MAX_BLAME_FILES = 300
@@ -24,8 +24,10 @@ def _urgency(item: ToilItem) -> float:
 
 
 def compute_priority(item: ToilItem) -> float:
-    base = item.severity * 10 + (6 - item.effort) * 2
-    return round(base + _urgency(item), 3)
+    base = item.severity * 10 + (6 - item.effort) * 2 + _urgency(item)
+    if item.security_severity:
+        base += item.security_severity * 2
+    return round(base * item.hotspot_multiplier, 3)
 
 
 def _enrich_staleness(root: str, items: list[ToilItem], now: datetime) -> None:
@@ -52,10 +54,13 @@ def scan_repo(
     kinds: list[str] | None = None,
     extra_items: list[ToilItem] | None = None,
     now: datetime | None = None,
+    online: bool = True,
 ) -> list[ToilItem]:
     reference = now or datetime.now(timezone.utc)
     files = walk_repo(root)
     items = run_all(files)
+    if online:
+        items.extend(dep_health.scan(files, online=True))
     if extra_items:
         items.extend(extra_items)
     _enrich_staleness(root, items, reference)

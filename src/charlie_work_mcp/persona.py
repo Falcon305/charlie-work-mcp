@@ -9,6 +9,9 @@ _EMOJI = {
     ToilKind.focused_test: "🎯",
     ToilKind.todo_rot: "📌",
     ToilKind.dependency_risk: "📦",
+    ToilKind.vulnerable_dep: "🚨",
+    ToilKind.outdated_dep: "🕰️",
+    ToilKind.secret_leak: "🔑",
     ToilKind.dead_flag: "🧵",
     ToilKind.expiring_cert: "🔒",
     ToilKind.unowned_runbook: "📋",
@@ -35,7 +38,12 @@ def _charlie_line(item: ToilItem) -> str:
         tail = " — there is no Pepe Silvia"
     elif item.kind == ToilKind.flaky_test:
         tail = " — it keeps rat-nesting in CI"
-    return f"{emoji} {item.title} ({_location(item)}){tail}"
+    elif item.kind == ToilKind.secret_leak:
+        tail = " — you left the keys under the mat"
+    elif item.kind == ToilKind.vulnerable_dep:
+        tail = " — this one's a ticking bomb"
+    fix = f" [fix: {item.fix}]" if item.fix else ""
+    return f"{emoji} {item.title} ({_location(item)}){tail}{fix}"
 
 
 def _plain_line(item: ToilItem) -> str:

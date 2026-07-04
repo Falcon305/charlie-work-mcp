@@ -57,12 +57,13 @@ def charlie_scan_toil(
     limit: int = DEFAULT_PAGE_SIZE,
     include_github: bool = False,
     github_repo: str | None = None,
+    online: bool = True,
 ) -> ScanResult:
     resolved = _resolve_mode(mode)
     limit = max(1, min(limit, MAX_PAGE_SIZE))
     offset = max(0, offset)
     extra, note = _github_items(include_github, github_repo)
-    everything = scan_repo(repo, kinds=kinds, extra_items=extra)
+    everything = scan_repo(repo, kinds=kinds, extra_items=extra, online=online)
     total = len(everything)
     page = everything[offset : offset + limit]
     report = render_scan(page, total, offset, resolved)
@@ -97,7 +98,7 @@ def charlie_did_it(
 ) -> LedgerResult:
     resolved = _resolve_mode(mode)
     match: ToilItem | None = None
-    for item in scan_repo(repo):
+    for item in scan_repo(repo, online=False):
         if item.id == toil_id:
             match = item
             break
@@ -111,7 +112,7 @@ def charlie_did_it(
     )
     entries = store.append_entry(repo, entry)
     counts = store.credit_counts(entries)
-    open_count = len(scan_repo(repo))
+    open_count = len(scan_repo(repo, online=False))
     report = render_ledger(entries, counts, store.champion(counts), open_count, resolved)
     return LedgerResult(
         report=report,
@@ -133,7 +134,7 @@ def charlie_ledger(repo: str = ".", mode: Mode | None = None) -> LedgerResult:
     resolved = _resolve_mode(mode)
     entries = store.load_entries(repo)
     counts = store.credit_counts(entries)
-    open_count = len(scan_repo(repo))
+    open_count = len(scan_repo(repo, online=False))
     report = render_ledger(entries, counts, store.champion(counts), open_count, resolved)
     return LedgerResult(
         report=report,

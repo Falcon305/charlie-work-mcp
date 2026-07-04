@@ -1,16 +1,15 @@
 from __future__ import annotations
 
 from ..models import SourceFile, ToilItem
-from . import certs, dead_flags, debug, deps, runbooks, tests, todos
+from . import certs, code, deps, runbooks, secrets, todos
 
 ALL_SCANNERS = [
-    tests.scan,
+    code.scan,
     todos.scan,
     certs.scan,
-    dead_flags.scan,
     deps.scan,
     runbooks.scan,
-    debug.scan,
+    secrets.scan,
 ]
 
 
