@@ -111,8 +111,8 @@ def charlie_did_it(
     )
     entries = store.append_entry(repo, entry)
     counts = store.credit_counts(entries)
-    open_items = [i for i in scan_repo(repo) if i.id != toil_id]
-    report = render_ledger(entries, counts, store.champion(counts), len(open_items), resolved)
+    open_count = len(scan_repo(repo))
+    report = render_ledger(entries, counts, store.champion(counts), open_count, resolved)
     return LedgerResult(
         report=report,
         entries=entries,
