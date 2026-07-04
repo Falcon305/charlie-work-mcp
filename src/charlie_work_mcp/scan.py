@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+from . import hotspots, owners, scoring
 from .config import Config, load_config
 from .constants import CERT_WARN_DAYS
 from .fs import walk_repo
 from .gitmeta import blame_line_times, is_git_repo
-from .models import ToilItem, ToilKind
+from .models import SourceFile, ToilItem, ToilKind
 from .scanners import dep_health, run_all
 from .suppress import apply_suppressions
 
@@ -51,14 +52,14 @@ def _enrich_staleness(root: str, items: list[ToilItem], now: datetime) -> None:
             item.staleness_days = max(0, (now - committed).days)
 
 
-def scan_repo(
+def scan_detailed(
     root: str,
     kinds: list[str] | None = None,
     extra_items: list[ToilItem] | None = None,
     now: datetime | None = None,
     online: bool = True,
     config: Config | None = None,
-) -> list[ToilItem]:
+) -> tuple[list[ToilItem], list[SourceFile]]:
     reference = now or datetime.now(timezone.utc)
     resolved_config = config or load_config(root)
     files = walk_repo(root)
@@ -69,10 +70,30 @@ def scan_repo(
         items.extend(extra_items)
     items = apply_suppressions(items, files, resolved_config, root)
     _enrich_staleness(root, items, reference)
+    hotspots.apply_multipliers(items, hotspots.compute_multipliers(root, files))
+    owners.annotate(items, owners.load_owners(root))
+    scoring.annotate(items)
     for item in items:
         item.priority = compute_priority(item)
     if kinds:
         wanted = set(kinds)
         items = [item for item in items if item.kind.value in wanted]
     items.sort(key=lambda i: (-i.priority, i.path, i.line or 0))
+    return items, files
+
+
+def scan_repo(
+    root: str,
+    kinds: list[str] | None = None,
+    extra_items: list[ToilItem] | None = None,
+    now: datetime | None = None,
+    online: bool = True,
+    config: Config | None = None,
+) -> list[ToilItem]:
+    items, _ = scan_detailed(root, kinds, extra_items, now, online, config)
     return items
+
+
+def summarize_repo(root: str, online: bool = False) -> tuple[list[ToilItem], dict]:
+    items, files = scan_detailed(root, online=online)
+    return items, scoring.summarize(items, files)

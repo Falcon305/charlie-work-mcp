@@ -7,10 +7,20 @@ from typing import Literal
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
+from . import history, scoring
 from .constants import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE
-from .models import LedgerEntry, LedgerResult, ScanResult, ToilItem
+from .models import (
+    Explanation,
+    LedgerEntry,
+    LedgerResult,
+    ScanResult,
+    Summary,
+    ToilItem,
+    TriagePlan,
+    TrendReport,
+)
 from .persona import render_ledger, render_scan
-from .scan import scan_repo
+from .scan import scan_repo, summarize_repo
 from .services import store
 from .services.github import GithubUnavailable, fetch_labeled_issues
 
@@ -134,11 +144,112 @@ def charlie_ledger(repo: str = ".", mode: Mode | None = None) -> LedgerResult:
     resolved = _resolve_mode(mode)
     entries = store.load_entries(repo)
     counts = store.credit_counts(entries)
+    minutes = _reclaimed_minutes(entries)
     open_count = len(scan_repo(repo, online=False))
     report = render_ledger(entries, counts, store.champion(counts), open_count, resolved)
     return LedgerResult(
         report=report,
         entries=entries,
         credits=counts,
+        minutes=minutes,
         champion=store.champion(counts),
+    )
+
+
+def _reclaimed_minutes(entries: list[LedgerEntry]) -> dict[str, int]:
+    from .models import ToilKind
+
+    minutes: dict[str, int] = {}
+    for entry in entries:
+        try:
+            kind = ToilKind(entry.kind)
+        except ValueError:
+            continue
+        minutes[entry.who] = minutes.get(entry.who, 0) + scoring._EST_MINUTES.get(kind, 10)
+    return minutes
+
+
+@mcp.tool(
+    title="Charlie: the toil budget",
+    description=(
+        "Report the repo's toil budget: total estimated remediation minutes, a debt ratio, an A-E "
+        "maintainability grade, and counts by kind. Google SRE says keep toil under 50 percent."
+    ),
+    annotations=ToolAnnotations(readOnlyHint=True, openWorldHint=True),
+)
+def charlie_summary(repo: str = ".", online: bool = False) -> Summary:
+    _, summary = summarize_repo(repo, online=online)
+    hours = round(summary["total_minutes"] / 60, 1)
+    report = (
+        f"Grade {summary['grade']} — {summary['count']} item(s), ~{hours}h of Charlie Work, "
+        f"debt ratio {summary['debt_ratio']:.1%}."
+    )
+    return Summary(report=report, **summary)
+
+
+@mcp.tool(
+    title="Charlie: explain this",
+    description="Explain why a specific finding (by its toil id) is real debt, with evidence and a fix.",
+    annotations=ToolAnnotations(readOnlyHint=True, openWorldHint=True),
+)
+def charlie_explain(finding_id: str, repo: str = ".", online: bool = False) -> Explanation:
+    match = next((i for i in scan_repo(repo, online=online) if i.id == finding_id), None)
+    if match is None:
+        return Explanation(report=f"No open finding with id {finding_id}. Maybe somebody already did it.", found=False)
+    hot = f" It sits in a hotspot (churn x complexity {match.hotspot_multiplier}x)." if match.hotspot_multiplier > 1 else ""
+    owner = f" Owner: {match.owner}." if match.owner else ""
+    fix = f" Fix: {match.fix}" if match.fix else ""
+    report = (
+        f"{match.title} at {match.path}:{match.line or '?'}. Confidence {match.confidence}, "
+        f"severity {match.severity}, ~{match.est_minutes}m to clear.{hot}{owner}{fix} Evidence: {match.evidence}"
+    )
+    return Explanation(report=report, found=True, item=match)
+
+
+@mcp.tool(
+    title="Charlie: triage",
+    description="Return the top-N highest-priority toil items as an action plan for an agent to work through.",
+    annotations=ToolAnnotations(readOnlyHint=True, openWorldHint=True),
+)
+def charlie_triage(repo: str = ".", top_n: int = 5, online: bool = True) -> TriagePlan:
+    items = scan_repo(repo, online=online)[: max(1, min(top_n, 20))]
+    lines = ["Top of the pile. Start here, nobody else will:"]
+    for index, item in enumerate(items, start=1):
+        location = f"{item.path}:{item.line}" if item.line else item.path
+        lines.append(f"{index}. [{item.confidence}] {item.title} ({location}) ~{item.est_minutes}m")
+    return TriagePlan(report="\n".join(lines), items=items)
+
+
+@mcp.tool(
+    title="Charlie: the trend",
+    description="Record a toil snapshot and report how the toil budget has moved since last time.",
+    annotations=ToolAnnotations(readOnlyHint=False, openWorldHint=True),
+)
+def charlie_trend(repo: str = ".", online: bool = False) -> TrendReport:
+    _, summary = summarize_repo(repo, online=online)
+    history.record(repo, summary)
+    delta = history.delta(repo)
+    if delta is None:
+        report = f"First snapshot: toil score {summary['toil_score']}, grade {summary['grade']}. Come back later."
+    else:
+        direction = "down" if delta["toil_score_delta"] <= 0 else "UP"
+        report = (
+            f"Toil score {direction} {abs(delta['toil_score_delta'])} since last snapshot "
+            f"(now {summary['toil_score']}, grade {summary['grade']})."
+        )
+    return TrendReport(report=report, current=summary, delta=delta)
+
+
+@mcp.resource("toil://queue")
+def toil_queue_resource() -> str:
+    items = scan_repo(".", online=False)
+    return render_scan(items, len(items), 0, "plain")
+
+
+@mcp.prompt(title="Triage my toil")
+def triage_toil(max_items: int = 5) -> str:
+    return (
+        f"Call charlie_triage with top_n={max_items}. For each item, decide keep or fix, give a "
+        "one-line rationale and an effort size (S/M/L), then propose a concrete fix for the top "
+        "three. Use charlie_explain if you need the evidence behind any item."
     )

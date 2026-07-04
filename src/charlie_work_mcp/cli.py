@@ -4,13 +4,14 @@ import argparse
 import json
 import sys
 
+from . import history
 from .baseline import filter_new, load_baseline, write_baseline
 from .config import load_config
 from .diff import added_lines, filter_to_diff
 from .models import ToilItem
 from .persona import render_scan
 from .sarif import to_sarif
-from .scan import scan_repo
+from .scan import scan_repo, summarize_repo
 from .services import store
 
 
@@ -76,6 +77,31 @@ def _cmd_sarif(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_summary(args: argparse.Namespace) -> int:
+    _, summary = summarize_repo(args.path, online=not args.offline)
+    hours = round(summary["total_minutes"] / 60, 1)
+    print(
+        f"Grade {summary['grade']} — {summary['count']} item(s), ~{hours}h of Charlie Work, "
+        f"debt ratio {summary['debt_ratio']:.1%} across {summary['loc']} lines."
+    )
+    return 0
+
+
+def _cmd_trend(args: argparse.Namespace) -> int:
+    _, summary = summarize_repo(args.path, online=not args.offline)
+    history.record(args.path, summary)
+    delta = history.delta(args.path)
+    if delta is None:
+        print(f"Charlie Work: first snapshot — toil score {summary['toil_score']}, grade {summary['grade']}.")
+    else:
+        direction = "down" if delta["toil_score_delta"] <= 0 else "UP"
+        print(
+            f"Charlie Work: toil score {direction} {abs(delta['toil_score_delta'])} "
+            f"(now {summary['toil_score']}, grade {summary['grade']})."
+        )
+    return 0
+
+
 def _cmd_ledger(args: argparse.Namespace) -> int:
     from .persona import render_ledger
 
@@ -123,6 +149,14 @@ def build_parser() -> argparse.ArgumentParser:
     _add_common(ledger)
     ledger.add_argument("--plain", action="store_true", help="Flavor-free output.")
     ledger.set_defaults(func=_cmd_ledger)
+
+    summary = sub.add_parser("summary", help="Show the toil budget: score, debt ratio, grade.")
+    _add_common(summary)
+    summary.set_defaults(func=_cmd_summary)
+
+    trend = sub.add_parser("trend", help="Record a snapshot and show the toil-budget delta.")
+    _add_common(trend)
+    trend.set_defaults(func=_cmd_trend)
 
     return parser
 

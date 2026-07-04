@@ -75,6 +75,34 @@ class ScanResult(BaseModel):
     next_offset: int | None = Field(default=None, description="Offset to pass for the next page.")
 
 
+class Summary(BaseModel):
+    report: str
+    toil_score: float
+    total_minutes: int
+    loc: int
+    debt_ratio: float
+    grade: str
+    count: int
+    counts: dict[str, int]
+
+
+class Explanation(BaseModel):
+    report: str
+    found: bool
+    item: ToilItem | None = None
+
+
+class TriagePlan(BaseModel):
+    report: str
+    items: list[ToilItem]
+
+
+class TrendReport(BaseModel):
+    report: str
+    current: dict
+    delta: dict | None = None
+
+
 class LedgerEntry(BaseModel):
     toil_id: str
     kind: str
@@ -88,6 +116,7 @@ class LedgerResult(BaseModel):
     report: str
     entries: list[LedgerEntry]
     credits: dict[str, int]
+    minutes: dict[str, int] = Field(default_factory=dict)
     champion: str | None = None
 
 
