@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from charlie_work_mcp.models import SourceFile, ToilKind
-from charlie_work_mcp.scanners import certs, code, deps, runbooks, secrets
-from charlie_work_mcp.scanners import py_ast, treesitter_scan
+from charlie_work_mcp.scanners import certs, code, deps, py_ast, runbooks, secrets, treesitter_scan
 from charlie_work_mcp.services.lockfiles import parse_lockfiles
 
 
@@ -48,7 +47,10 @@ def test_py_ast_flag_reads_vs_defs():
 
 
 def test_treesitter_js_and_go():
-    js = _f("a.test.js", "describe.skip('s',()=>{});\nit.only('f',()=>{debugger;});\nxit('l',()=>{});\nconsole.log('x');\nfoo.skip();\n")
+    js = _f(
+        "a.test.js",
+        "describe.skip('s',()=>{});\nit.only('f',()=>{debugger;});\nxit('l',()=>{});\nconsole.log('x');\nfoo.skip();\n",
+    )
     kinds = [i.kind for i in treesitter_scan.scan_file(js)]
     assert kinds.count(ToilKind.skipped_test) == 2
     assert ToilKind.focused_test in kinds
@@ -79,7 +81,7 @@ def test_secrets_catches_real_ignores_placeholder():
     rules = {i.rule_id for i in found}
     assert "charlie/secret-aws-access-key" in rules
     assert "charlie/secret-github-token" in rules
-    assert all("doc.py" != i.path for i in found)
+    assert all(i.path != "doc.py" for i in found)
 
 
 def test_secrets_skips_test_and_markdown_paths():
@@ -118,7 +120,7 @@ def _make_cert(days: int) -> str:
 
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "staging-api")])
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     cert = (
         x509.CertificateBuilder()
         .subject_name(name)

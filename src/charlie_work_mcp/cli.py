@@ -45,9 +45,7 @@ def _cmd_gate(args: argparse.Namespace) -> int:
     min_severity = args.severity if args.severity is not None else config.gate_min_severity
     min_rank = config.confidence_rank(args.confidence or config.gate_min_confidence)
     blocking = [
-        i
-        for i in items
-        if i.severity >= min_severity and config.confidence_rank(i.confidence) >= min_rank
+        i for i in items if i.severity >= min_severity and config.confidence_rank(i.confidence) >= min_rank
     ]
     if blocking:
         print(f"Charlie Work: {len(blocking)} new blocking item(s) — nobody else was gonna catch these.")

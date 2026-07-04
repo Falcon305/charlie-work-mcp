@@ -136,9 +136,7 @@ def parse_lockfiles(files: list[SourceFile]) -> list[ResolvedPackage]:
         base = file.path.rsplit("/", 1)[-1].lower()
         if base == "requirements.txt":
             out.extend(_requirements(file))
-        elif base in ("poetry.lock", "pdm.lock"):
-            out.extend(_toml_packages(file, "PyPI", True))
-        elif base == "uv.lock":
+        elif base in ("poetry.lock", "pdm.lock") or base == "uv.lock":
             out.extend(_toml_packages(file, "PyPI", True))
         elif base == "cargo.lock":
             out.extend(_toml_packages(file, "crates.io", False))

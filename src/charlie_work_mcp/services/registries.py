@@ -63,9 +63,7 @@ def majors_behind(current: str, latest: str) -> int | None:
     return max(0, new.major - cur.major)
 
 
-def latest_versions(
-    ecosystem: str, names: list[str], timeout: float = 12.0
-) -> dict[str, str]:
+def latest_versions(ecosystem: str, names: list[str], timeout: float = 12.0) -> dict[str, str]:
     fetcher = _FETCHERS.get(ecosystem)
     if not fetcher:
         return {}

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
@@ -36,7 +36,7 @@ def _parse_expiry(text: str) -> datetime | None:
 
 
 def scan(files: list[SourceFile], now: datetime | None = None) -> list[ToilItem]:
-    reference = now or datetime.now(timezone.utc)
+    reference = now or datetime.now(UTC)
     items: list[ToilItem] = []
     for file in files:
         if not file.path.lower().endswith(_CERT_SUFFIXES):

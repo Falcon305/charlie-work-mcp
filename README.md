@@ -4,9 +4,10 @@
 
 # Charlie Work
 
-**An MCP server that surfaces — and dignifies — the toil in your repo.**
+**A code-health tool that surfaces — and dignifies — the toil in your repo.**
+An MCP server *and* a CLI *and* a CI gate.
 
-The un-fun, load-bearing maintenance work everyone ignores until it bites: flaky tests, a TLS cert nine days from death, dead feature flags, TODO rot, dependencies pinned to nothing, scripts nobody owns. Charlie Work scans your repo, hands you a **prioritized queue**, and keeps a **credit ledger** so the invisible work finally shows up in standup.
+The un-fun, load-bearing maintenance work everyone ignores until it bites: flaky tests, a TLS cert nine days from death, **known-vulnerable dependencies**, **committed secrets**, dead feature flags, TODO rot, scripts nobody owns. Charlie Work scans your repo with real parsers and real vulnerability data, ranks the findings by where your team actually bleeds time, and keeps a **credit ledger** so the invisible work finally shows up in standup.
 
 *Named after the episode where the gang realizes Charlie has been quietly holding Paddy's together the whole time.*
 
@@ -16,17 +17,11 @@ The un-fun, load-bearing maintenance work everyone ignores until it bites: flaky
 
 > **THIS IS CHARLIE WORK. Nobody else will do it. That's why it's yours.**
 
-The jokes are a **toggle, not a tax** — pass `mode="plain"` (or set `CHARLIE_VOICE=off`) and every response comes back flavor-free, paste-into-a-ticket clean. Same data, no bit.
+The jokes are a **toggle, not a tax** — pass `mode="plain"` (or set `CHARLIE_VOICE=off`) and every response is flavor-free, paste-into-a-ticket clean. CI and SARIF output are always plain.
 
-## Quickstart
+## Three ways to run it
 
-Run it straight from the repo with [`uv`](https://docs.astral.sh/uv/) — no clone, no build:
-
-```bash
-uvx --from git+https://github.com/Falcon305/charlie-work-mcp charlie-work-mcp
-```
-
-Then point your MCP client at it. For **Claude Desktop** / **Cursor** (`mcpServers` config):
+**1. As an MCP server** — point Claude Desktop / Cursor / Claude Code at it:
 
 ```json
 {
@@ -39,101 +34,101 @@ Then point your MCP client at it. For **Claude Desktop** / **Cursor** (`mcpServe
 }
 ```
 
-Now ask your agent: *"Run Charlie Work on this repo and tell me what nobody's doing."*
+**2. As a CLI:**
 
-## What it does
+```bash
+uvx --from git+https://github.com/Falcon305/charlie-work-mcp charlie-work scan
+charlie-work summary        # toil budget + A–E maintainability grade
+charlie-work sarif -o out.sarif
+```
 
-Three sharp tools. Each does something an LLM can't do on its own — walk the real tree, hold persistent state, reach live data.
+**3. As a CI gate** — fail a PR only when it introduces *new* high-severity toil ("Clean as You Code"):
+
+```yaml
+- uses: Falcon305/charlie-work-mcp@master
+  with:
+    severity: "4"
+```
+
+## Trustworthy detection (not regex theater)
+
+Every scanner is backed by a parser or an authoritative data source, and every finding carries a **confidence tier** (`verified` / `high` / `heuristic`) so CI gates on facts, not guesses.
+
+| Kind | How it's detected |
+|------|-------------------|
+| `vulnerable_dep` | Lockfiles → **OSV.dev** (free, no key). Emits the CVE + the exact fixed version. |
+| `secret_leak` | gitleaks-style provider regexes + Shannon-entropy gate + allowlists. |
+| `skipped_test` / `flaky_test` / `focused_test` | **Python AST** and **tree-sitter** (JS/TS/Go) — never matches a string or a comment. |
+| `debug_leftover` | AST calls: `breakpoint()`, `pdb.set_trace`, `debugger`, `console.log`. |
+| `dead_flag` | Flags **read but never set anywhere** (the Pepe Silvia case), via AST literal extraction. |
+| `expiring_cert` | Real X.509 parsing — `.pem`/`.crt` within 30 days of expiry, or already dead. |
+| `outdated_dep` | Registry queries (PyPI/npm/crates/Go) → majors-behind. |
+| `todo_rot` | `TODO`/`FIXME`/`HACK` in real comments, aged by git blame. |
+| `dependency_risk` / `unowned_runbook` | Unpinned deps; operational scripts with no owner or CODEOWNERS. |
+
+The difference from regex, in one line: the Python string `"pytest.mark.skip"` and a `# breakpoint()` comment are **not** flagged. Only real code is.
+
+## Where your team actually bleeds — hotspots + a toil budget
+
+Charlie ranks by **churn × complexity** (CodeScene-style): debt in a file edited 40× this quarter outranks the same debt in one untouched for years. `charlie-work summary` rolls it into a **toil budget** — total remediation minutes, a SQALE-style debt ratio, and an A–E grade. Google SRE says keep toil under 50%.
+
+## Agent-native tools
 
 | Tool | What it does |
 |------|--------------|
-| `charlie_scan_toil` | Scans a repo and returns a prioritized toil queue (severity × effort × staleness). Paginated. Filter by `kinds`. |
-| `charlie_did_it` | Records that someone cleared a piece of toil, by its `toil_id`. Persists to a local ledger. |
-| `charlie_ledger` | Reports the credit ledger for standup: who cleared what, the Champion of the Grease Trap, and what's still open. |
+| `charlie_scan_toil` | Prioritized, paginated toil queue (structured output). |
+| `charlie_summary` | Toil budget: score, debt ratio, A–E grade. |
+| `charlie_triage` | Top-N action plan for an agent to work through. |
+| `charlie_explain` | Why a finding is debt — evidence, hotspot, owner, fix. |
+| `charlie_trend` | Records a snapshot and reports the delta over time. |
+| `charlie_did_it` / `charlie_ledger` | The credit ledger — who cleared what, Champion of the Grease Trap. |
 
-### Real output
-
-```
-THIS IS CHARLIE WORK. Nobody else will do it. That's why it's yours.
-
-🔒 TLS certificate expires in 8 days (certs/staging.pem) — the clock is running, Frank
-🎯 Focused test left in — the rest of the suite isn't running (tests/checkout.spec.js:1)
-🐀 Flaky test papered over with retries (tests/test_login.py:9) — it keeps rat-nesting in CI
-📌 FIXME left in the code (notes.py:3)
-📦 Dependency 'left-pad' is pinned to '*' — a rug that will pull itself (package.json)
-📦 Dependency 'flask' has no version pin — whatever ships, ships (requirements.txt:1)
-
-11 thing(s) nobody wanted to do. Showing 6 from #0.
-```
-
-The machine-readable payload rides alongside as structured content — `[{id, kind, path, line, title, evidence, severity, effort, staleness_days, priority}]` — so an agent can act on it directly.
-
-```
-THE LEDGER. Somebody did the work. It gets written down.
-👑 Champion of the Grease Trap: dee
-  dee cleared 1 — respect.
-Still on the board: 11. Somebody's gotta do it.
-```
-
-## What it looks for
-
-| Kind | Signal |
-|------|--------|
-| `expiring_cert` | `.pem`/`.crt` certificates within 30 days of expiry (or already dead) |
-| `focused_test` | `it.only` / `describe.only` / `fit` — the rest of the suite isn't running |
-| `flaky_test` | `@pytest.mark.flaky`, retry counts, `@flaky` |
-| `skipped_test` | `@pytest.mark.skip`, `it.skip`, `xit`, `xfail` |
-| `dead_flag` | feature flags **read but never set anywhere** (the Pepe Silvia case) |
-| `todo_rot` | `TODO` / `FIXME` / `HACK` / `XXX` / `BUG`, aged by git blame |
-| `dependency_risk` | unpinned / wildcard deps in `package.json` and `requirements.txt` |
-| `unowned_runbook` | operational scripts with no owner and no CODEOWNERS |
-| `debug_leftover` | `breakpoint()`, `console.log`, `debugger`, `pdb.set_trace` in source |
+Plus a `toil://queue` **resource** and a `triage_toil` **prompt**. Things a dashboard can't do: *"triage the top 3, explain why, and open PRs — then credit me in the ledger."*
 
 ## Not a toy: token discipline + evals
 
-Most novelty MCP servers are thin API wrappers that tax every prompt. Charlie Work is built the other way:
-
-- **The heavy work happens server-side.** An agent that wanted to find this toil itself would have to read the whole repo into context. Charlie Work does the scanning and returns only a compact, ranked, paginated queue — the raw files never enter the model's context.
-- **It ships a reproducible eval harness** (`evals/run.py`) that plants known toil in a fixture repo and asserts the *end state*: did every planted kind surface, and did the queue rank the right thing first?
+- **The heavy work happens server-side.** An agent finding this toil itself would read the whole repo into context; Charlie returns only a compact ranked queue. The raw files never enter the model's context.
+- **A reproducible eval harness** (`evals/run.py`) plants known toil and asserts the *end state* — recall and ranking — plus a token-cost measurement. There's also an optional model-graded tool-selection eval (`evals/agentic.py`).
 
 ```
 $ uv run evals/run.py
-planted kinds        : 9
-kinds recalled       : 9      (100% recall)
-top item is the cert : True   (expiring_cert ranked #1)
-naive: read whole repo : 1190 tokens
-charlie work queue     : 753 tokens
-token reduction        : 37%
+kinds recalled : 9/9  (100% recall)   top item is the cert : True
+naive: read whole repo : 1881 tokens
+charlie work queue     : 1353 tokens  →  28% fewer tokens
 RESULT: PASS
 ```
 
-That 37% is on a nine-file toy fixture; the gap widens fast — naive cost grows with the size of the repo, the queue stays bounded to one page.
+That 28% is on a tiny fixture; the gap widens fast — naive cost grows with the repo, the queue stays bounded to one page.
 
-## Optional: live GitHub integration
+## Configuration & suppression
 
-Self-contained by default (zero credentials). Set `GITHUB_TOKEN` and pass `include_github=true` with a `github_repo` to fold in open issues/PRs labeled `chore` / `tech-debt` / `good-first-issue`. If the token is missing or rejected, the scan degrades gracefully and still returns local findings.
+Zero-config to start. Tune via `[tool.charlie]` in `pyproject.toml` (or `charlie.toml`):
+
+```toml
+[tool.charlie]
+exclude = ["vendor/**"]
+disable = ["charlie/todo-rot"]
+min_confidence = "high"
+[tool.charlie.per-file-ignores]
+"tests/**" = ["secret_leak"]
+```
+
+Plus inline `# charlie: ignore[rule]`, a `.charlieignore`, and a committed baseline (`charlie-work baseline`) so a fresh install starts at "0 new."
 
 ## Development
 
 ```bash
-uv venv --python 3.11
-uv pip install -e ".[dev]"
-uv run pytest        # unit tests
-uv run evals/run.py  # eval harness
+uv sync --extra dev
+uv run ruff check . && uv run mypy && uv run pytest -q
+uv run python evals/run.py
 ```
+
+CI runs ruff + mypy(typed) + pytest + evals across Python 3.11–3.13. Releases publish to PyPI via OIDC Trusted Publishing.
 
 ## The gang (roadmap)
 
-Charlie Work is the first of a set of *It's Always Sunny*-flavored dev tools, each shipping as its own standalone MCP server:
-
-- **The Implication** — auth & dark-pattern security auditor
-- **Pepe Silvia** — dead-code & ghost-dependency conspiracy-wall tracer
-- **The D.E.N.N.I.S. System** — a launch/rollout comms planner that actually spells the checklist
+Each ships as its own standalone MCP server: **The Implication** (auth & dark-pattern auditor), **Pepe Silvia** (dead-code tracer), **The D.E.N.N.I.S. System** (rollout comms planner).
 
 ## License
 
-Code: MIT.
-
-The hero image is a still from *It's Always Sunny in Philadelphia* (© FX Networks), used here for
-identification and commentary. It is not covered by the MIT license and remains the property of its
-rights holder. An original vector rendition of the same scene ships at [`assets/hero.svg`](./assets/hero.svg).
+Code: MIT. The hero image is a still from *It's Always Sunny in Philadelphia* (© FX Networks), used for identification and commentary; it is not covered by the MIT license. An original vector rendition ships at [`assets/hero.svg`](./assets/hero.svg).

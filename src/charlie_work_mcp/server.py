@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Literal
 
 from mcp.server.fastmcp import FastMCP
@@ -16,8 +16,8 @@ from .models import (
     ScanResult,
     Summary,
     ToilItem,
-    TriagePlan,
     TrendReport,
+    TriagePlan,
 )
 from .persona import render_ledger, render_scan
 from .scan import scan_repo, summarize_repo
@@ -117,7 +117,7 @@ def charlie_did_it(
         kind=match.kind.value if match else "unknown",
         title=match.title if match else "cleared toil",
         who=who,
-        at=datetime.now(timezone.utc).isoformat(),
+        at=datetime.now(UTC).isoformat(),
         note=note,
     )
     entries = store.append_entry(repo, entry)
@@ -195,8 +195,14 @@ def charlie_summary(repo: str = ".", online: bool = False) -> Summary:
 def charlie_explain(finding_id: str, repo: str = ".", online: bool = False) -> Explanation:
     match = next((i for i in scan_repo(repo, online=online) if i.id == finding_id), None)
     if match is None:
-        return Explanation(report=f"No open finding with id {finding_id}. Maybe somebody already did it.", found=False)
-    hot = f" It sits in a hotspot (churn x complexity {match.hotspot_multiplier}x)." if match.hotspot_multiplier > 1 else ""
+        return Explanation(
+            report=f"No open finding with id {finding_id}. Maybe somebody already did it.", found=False
+        )
+    hot = (
+        f" It sits in a hotspot (churn x complexity {match.hotspot_multiplier}x)."
+        if match.hotspot_multiplier > 1
+        else ""
+    )
     owner = f" Owner: {match.owner}." if match.owner else ""
     fix = f" Fix: {match.fix}" if match.fix else ""
     report = (

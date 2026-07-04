@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from .constants import STATE_DIRNAME
 from .gitmeta import _run, is_git_repo
@@ -25,7 +25,7 @@ def record(root: str, summary: dict) -> dict:
     directory = os.path.join(os.path.abspath(root), STATE_DIRNAME)
     os.makedirs(directory, exist_ok=True)
     entry = {
-        "at": datetime.now(timezone.utc).isoformat(),
+        "at": datetime.now(UTC).isoformat(),
         "sha": _head_sha(root),
         "toil_score": summary["toil_score"],
         "total_minutes": summary["total_minutes"],

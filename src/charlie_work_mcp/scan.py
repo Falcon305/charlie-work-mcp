@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from . import hotspots, owners, scoring
 from .config import Config, load_config
@@ -48,7 +48,7 @@ def _enrich_staleness(root: str, items: list[ToilItem], now: datetime) -> None:
             epoch = times.get(item.line or 0)
             if epoch is None:
                 continue
-            committed = datetime.fromtimestamp(epoch, tz=timezone.utc)
+            committed = datetime.fromtimestamp(epoch, tz=UTC)
             item.staleness_days = max(0, (now - committed).days)
 
 
@@ -60,7 +60,7 @@ def scan_detailed(
     online: bool = True,
     config: Config | None = None,
 ) -> tuple[list[ToilItem], list[SourceFile]]:
-    reference = now or datetime.now(timezone.utc)
+    reference = now or datetime.now(UTC)
     resolved_config = config or load_config(root)
     files = walk_repo(root)
     items = run_all(files)

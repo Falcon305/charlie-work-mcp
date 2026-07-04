@@ -52,9 +52,7 @@ class ToilItem(BaseModel):
     )
     fix: str | None = Field(default=None, description="Suggested concrete fix, when known.")
     hotspot_multiplier: float = Field(default=1.0, description="Churn x complexity weight.")
-    staleness_days: int | None = Field(
-        default=None, description="Age or time-to-deadline in days when known."
-    )
+    staleness_days: int | None = Field(default=None, description="Age or time-to-deadline in days when known.")
     source: str = Field(default="local", description="Where the finding came from: local or github.")
     priority: float = Field(default=0.0, description="Computed rank, higher means do it sooner.")
 

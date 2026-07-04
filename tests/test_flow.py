@@ -2,10 +2,9 @@ from __future__ import annotations
 
 import os
 
-from charlie_work_mcp.models import ToilKind
+from charlie_work_mcp.models import ToilItem, ToilKind
 from charlie_work_mcp.scan import compute_priority, scan_repo
 from charlie_work_mcp.services import store
-from charlie_work_mcp.models import ToilItem
 
 
 def _write(root: str, rel: str, text: str) -> None:
@@ -37,7 +36,9 @@ def test_ledger_persists_across_reload(tmp_path):
     root = str(tmp_path)
     from charlie_work_mcp.models import LedgerEntry
 
-    entry = LedgerEntry(toil_id="abc", kind="todo_rot", title="did a thing", who="dee", at="2026-07-04T00:00:00+00:00")
+    entry = LedgerEntry(
+        toil_id="abc", kind="todo_rot", title="did a thing", who="dee", at="2026-07-04T00:00:00+00:00"
+    )
     store.append_entry(root, entry)
     reloaded = store.load_entries(root)
     assert len(reloaded) == 1

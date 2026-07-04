@@ -53,14 +53,13 @@ def query_vulns(
             for start in range(0, len(packages), _BATCH_SIZE):
                 chunk = packages[start : start + _BATCH_SIZE]
                 queries = [
-                    {"package": {"ecosystem": p.ecosystem, "name": p.name}, "version": p.version}
-                    for p in chunk
+                    {"package": {"ecosystem": p.ecosystem, "name": p.name}, "version": p.version} for p in chunk
                 ]
                 response = client.post(_BATCH_URL, json={"queries": queries})
                 if response.status_code != 200:
                     continue
                 rows = response.json().get("results", [])
-                for pkg, row in zip(chunk, rows):
+                for pkg, row in zip(chunk, rows, strict=False):
                     ids = [v["id"] for v in (row.get("vulns") or [])]
                     if not ids:
                         continue

@@ -2,13 +2,15 @@ from __future__ import annotations
 
 from ..models import HEURISTIC, VERIFIED, SourceFile, ToilItem, ToilKind, make_id
 from ..services import registries
-from ..services.lockfiles import parse_lockfiles
-from ..services.osv import query_vulns
+from ..services.lockfiles import ResolvedPackage, parse_lockfiles
+from ..services.osv import Vulnerability, query_vulns
 
 _MAX_OUTDATED_LOOKUPS = 80
 
 
-def _vulnerable_items(packages, vulns) -> list[ToilItem]:  # noqa: ANN001
+def _vulnerable_items(
+    packages: list[ResolvedPackage], vulns: dict[tuple[str, str, str], list[Vulnerability]]
+) -> list[ToilItem]:
     items: list[ToilItem] = []
     for pkg in packages:
         hits = vulns.get(pkg.key())
@@ -37,7 +39,7 @@ def _vulnerable_items(packages, vulns) -> list[ToilItem]:  # noqa: ANN001
     return items
 
 
-def _outdated_items(packages) -> list[ToilItem]:  # noqa: ANN001
+def _outdated_items(packages: list[ResolvedPackage]) -> list[ToilItem]:
     items: list[ToilItem] = []
     by_ecosystem: dict[str, list] = {}
     for pkg in packages:

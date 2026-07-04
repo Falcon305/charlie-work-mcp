@@ -48,8 +48,6 @@ def filter_to_diff(items: list[ToilItem], added: dict[str, set[int]]) -> list[To
         lines = added.get(item.path)
         if lines is None:
             continue
-        if item.line is None:
-            kept.append(item)
-        elif item.line in lines:
+        if item.line is None or item.line in lines:
             kept.append(item)
     return kept

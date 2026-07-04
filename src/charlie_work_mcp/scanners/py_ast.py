@@ -138,7 +138,7 @@ class _Visitor(ast.NodeVisitor):
         self.generic_visit(node)
 
     def visit_Dict(self, node: ast.Dict) -> None:
-        for key, value in zip(node.keys, node.values):
+        for key, value in zip(node.keys, node.values, strict=False):
             if (
                 isinstance(key, ast.Constant)
                 and isinstance(key.value, str)

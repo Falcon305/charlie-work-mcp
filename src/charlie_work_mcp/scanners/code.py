@@ -15,9 +15,7 @@ _FALLBACK_EXT = (".rb", ".php", ".java", ".rs")
 _FLAG_READ = re.compile(
     r"""(?:is_enabled|isEnabled|feature_enabled|get_flag|flag|variation)\(\s*['"]([A-Za-z0-9_.-]+)['"]"""
 )
-_FLAG_DEF = re.compile(
-    r"""(?:register_flag|define_flag|add_flag|set_flag)\(\s*['"]([A-Za-z0-9_.-]+)['"]"""
-)
+_FLAG_DEF = re.compile(r"""(?:register_flag|define_flag|add_flag|set_flag)\(\s*['"]([A-Za-z0-9_.-]+)['"]""")
 _FLAG_DEF_ASSIGN = re.compile(r"""['"]([A-Za-z0-9_.-]+)['"]\s*[:=]\s*(?:true|false|True|False)""")
 
 
@@ -77,8 +75,8 @@ def scan(files: list[SourceFile]) -> list[ToilItem]:
         else:
             items.extend(_fallback_debug(file))
             file_reads, file_defs = _regex_flags(file)
-        for name, evidence in file_reads.items():
-            reads.setdefault(name, evidence)
+        for name, payload in file_reads.items():
+            reads.setdefault(name, payload)
         defs |= file_defs
 
     for name, (path, lineno, evidence) in sorted(reads.items()):

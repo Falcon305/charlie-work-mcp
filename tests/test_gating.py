@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import subprocess
 
 from charlie_work_mcp.baseline import filter_new, load_baseline, write_baseline
@@ -50,7 +49,9 @@ def test_suppression_excludes_disables_and_confidence(tmp_path):
 
 
 def test_inline_ignore(tmp_path):
-    files = [SourceFile(path="a.py", text="risky()  # charlie: ignore\nother()  # charlie: ignore[charlie/todo-rot]\n")]
+    files = [
+        SourceFile(path="a.py", text="risky()  # charlie: ignore\nother()  # charlie: ignore[charlie/todo-rot]\n")
+    ]
     items = [
         _item("a.py", 1, ToilKind.debug_leftover),
         _item("a.py", 2, ToilKind.todo_rot),
@@ -69,7 +70,7 @@ def test_baseline_roundtrip(tmp_path):
     assert written == 2
     loaded = load_baseline(str(tmp_path))
     new_item = _item("c.py", 3, ToilKind.secret_leak)
-    fresh = filter_new(items + [new_item], loaded)
+    fresh = filter_new([*items, new_item], loaded)
     assert [i.path for i in fresh] == ["c.py"]
 
 

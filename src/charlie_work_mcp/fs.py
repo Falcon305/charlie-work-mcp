@@ -34,7 +34,7 @@ def walk_repo(root: str) -> list[SourceFile]:
             try:
                 if os.path.getsize(full) > MAX_FILE_BYTES:
                     continue
-                with open(full, "r", encoding="utf-8", errors="ignore") as handle:
+                with open(full, encoding="utf-8", errors="ignore") as handle:
                     text = handle.read()
             except OSError:
                 continue

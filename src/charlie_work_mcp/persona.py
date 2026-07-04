@@ -48,10 +48,7 @@ def _charlie_line(item: ToilItem) -> str:
 
 def _plain_line(item: ToilItem) -> str:
     age = f", {item.staleness_days}d" if item.staleness_days is not None else ""
-    return (
-        f"- [{item.kind.value}] {item.title} "
-        f"({_location(item)}) sev={item.severity} effort={item.effort}{age}"
-    )
+    return f"- [{item.kind.value}] {item.title} ({_location(item)}) sev={item.severity} effort={item.effort}{age}"
 
 
 def _clamp(lines: list[str], header: str) -> str:

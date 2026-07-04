@@ -34,7 +34,7 @@ _GO_QUERY = """
 
 
 @lru_cache(maxsize=8)
-def _parser(language: str):  # noqa: ANN202
+def _parser(language: str):
     try:
         from tree_sitter import Parser
         from tree_sitter_language_pack import get_language
@@ -47,7 +47,7 @@ def _parser(language: str):  # noqa: ANN202
 
 
 @lru_cache(maxsize=32)
-def _query(language: str, source: str):  # noqa: ANN202
+def _query(language: str, source: str):
     try:
         from tree_sitter import Query
         from tree_sitter_language_pack import get_language
@@ -59,7 +59,7 @@ def _query(language: str, source: str):  # noqa: ANN202
         return None
 
 
-def _matches(language: str, source: str, root):  # noqa: ANN001, ANN202
+def _matches(language: str, source: str, root):
     query = _query(language, source)
     if not query:
         return []
@@ -70,16 +70,16 @@ def _matches(language: str, source: str, root):  # noqa: ANN001, ANN202
     return QueryCursor(query).matches(root)
 
 
-def _one(capture: dict, name: str):  # noqa: ANN001, ANN202
+def _one(capture: dict, name: str):
     nodes = capture.get(name)
     return nodes[0] if nodes else None
 
 
-def _text(node) -> str:  # noqa: ANN001
+def _text(node) -> str:
     return node.text.decode("utf-8", "ignore")
 
 
-def _emit(path: str, kind: ToilKind, node, title: str, evidence: str, severity: int) -> ToilItem:  # noqa: ANN001
+def _emit(path: str, kind: ToilKind, node, title: str, evidence: str, severity: int) -> ToilItem:
     line = node.start_point[0] + 1
     return ToilItem(
         id=make_id(kind, path, line, evidence),
@@ -96,7 +96,7 @@ def _emit(path: str, kind: ToilKind, node, title: str, evidence: str, severity: 
     )
 
 
-def _scan_js(path: str, language: str, root) -> list[ToilItem]:  # noqa: ANN001
+def _scan_js(path: str, language: str, root) -> list[ToilItem]:
     items: list[ToilItem] = []
     for _, cap in _matches(language, _MEMBER_QUERY, root):
         obj, prop, call = _one(cap, "obj"), _one(cap, "prop"), _one(cap, "call")
@@ -104,33 +104,68 @@ def _scan_js(path: str, language: str, root) -> list[ToilItem]:  # noqa: ANN001
             continue
         obj_name, prop_name = _text(obj), _text(prop)
         if obj_name == "console" and prop_name == "log":
-            items.append(_emit(path, ToilKind.debug_leftover, call, "console.log left in the code", "console.log(", 2))
+            items.append(
+                _emit(path, ToilKind.debug_leftover, call, "console.log left in the code", "console.log(", 2)
+            )
         elif obj_name in _TEST_OBJECTS and prop_name == "skip":
-            items.append(_emit(path, ToilKind.skipped_test, call, "Skipped test quietly rotting in the suite", f"{obj_name}.skip", 3))
+            items.append(
+                _emit(
+                    path,
+                    ToilKind.skipped_test,
+                    call,
+                    "Skipped test quietly rotting in the suite",
+                    f"{obj_name}.skip",
+                    3,
+                )
+            )
         elif obj_name in _TEST_OBJECTS and prop_name == "only":
-            items.append(_emit(path, ToilKind.focused_test, call, "Focused test left in — the rest of the suite isn't running", f"{obj_name}.only", 4))
+            items.append(
+                _emit(
+                    path,
+                    ToilKind.focused_test,
+                    call,
+                    "Focused test left in — the rest of the suite isn't running",
+                    f"{obj_name}.only",
+                    4,
+                )
+            )
     for _, cap in _matches(language, _IDENT_QUERY, root):
         fn, call = _one(cap, "fn"), _one(cap, "call")
         if not (fn and call):
             continue
         name = _text(fn)
         if name in _SKIP_IDENTS:
-            items.append(_emit(path, ToilKind.skipped_test, call, "Skipped test quietly rotting in the suite", name, 3))
+            items.append(
+                _emit(path, ToilKind.skipped_test, call, "Skipped test quietly rotting in the suite", name, 3)
+            )
         elif name in _FOCUS_IDENTS:
-            items.append(_emit(path, ToilKind.focused_test, call, "Focused test left in — the rest of the suite isn't running", name, 4))
+            items.append(
+                _emit(
+                    path,
+                    ToilKind.focused_test,
+                    call,
+                    "Focused test left in — the rest of the suite isn't running",
+                    name,
+                    4,
+                )
+            )
     for _, cap in _matches(language, _DEBUGGER_QUERY, root):
         node = _one(cap, "dbg")
         if node:
-            items.append(_emit(path, ToilKind.debug_leftover, node, "debugger statement left in the code", "debugger", 2))
+            items.append(
+                _emit(path, ToilKind.debug_leftover, node, "debugger statement left in the code", "debugger", 2)
+            )
     return items
 
 
-def _scan_go(path: str, root) -> list[ToilItem]:  # noqa: ANN001
+def _scan_go(path: str, root) -> list[ToilItem]:
     items: list[ToilItem] = []
     for _, cap in _matches("go", _GO_QUERY, root):
         field, call = _one(cap, "field"), _one(cap, "call")
         if field and call and _text(field).lower() in _GO_SKIP_METHODS:
-            items.append(_emit(path, ToilKind.skipped_test, call, "Skipped test left in the suite", _text(field), 3))
+            items.append(
+                _emit(path, ToilKind.skipped_test, call, "Skipped test left in the suite", _text(field), 3)
+            )
     return items
 
 

@@ -3,6 +3,8 @@ from __future__ import annotations
 import os
 from fnmatch import fnmatch
 
+from .models import ToilItem
+
 _LOCATIONS = ("CODEOWNERS", ".github/CODEOWNERS", "docs/CODEOWNERS")
 
 
@@ -42,7 +44,7 @@ def owner_for(path: str, rules: list[tuple[str, list[str]]]) -> str | None:
     return " ".join(match) if match else None
 
 
-def annotate(items, rules: list[tuple[str, list[str]]]) -> None:  # noqa: ANN001
+def annotate(items: list[ToilItem], rules: list[tuple[str, list[str]]]) -> None:
     if not rules:
         return
     for item in items:

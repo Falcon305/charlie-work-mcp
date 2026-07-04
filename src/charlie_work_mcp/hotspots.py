@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 
 from .gitmeta import _run, is_git_repo
-from .models import SourceFile
+from .models import SourceFile, ToilItem
 
 _BRANCH = re.compile(r"\b(if|elif|for|while|case|when|catch|except|switch)\b|&&|\|\||\?\.")
 _MAX_MULTIPLIER = 2.5
@@ -45,13 +45,10 @@ def compute_multipliers(root: str, files: list[SourceFile]) -> dict[str, float]:
     peak = max(products.values())
     if peak <= 0:
         return {}
-    return {
-        path: round(1.0 + (product / peak) * (_MAX_MULTIPLIER - 1.0), 3)
-        for path, product in products.items()
-    }
+    return {path: round(1.0 + (product / peak) * (_MAX_MULTIPLIER - 1.0), 3) for path, product in products.items()}
 
 
-def apply_multipliers(items, multipliers: dict[str, float]) -> None:  # noqa: ANN001
+def apply_multipliers(items: list[ToilItem], multipliers: dict[str, float]) -> None:
     for item in items:
         multiplier = multipliers.get(item.path)
         if multiplier:

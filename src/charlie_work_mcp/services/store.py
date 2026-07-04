@@ -21,7 +21,7 @@ def load_entries(root: str) -> list[LedgerEntry]:
     if not os.path.exists(path):
         return []
     try:
-        with open(path, "r", encoding="utf-8") as handle:
+        with open(path, encoding="utf-8") as handle:
             raw = json.load(handle)
     except (OSError, json.JSONDecodeError):
         return []
@@ -45,9 +45,7 @@ def _write(root: str, entries: list[LedgerEntry]) -> None:
     directory = _state_dir(root)
     os.makedirs(directory, exist_ok=True)
     payload = {"entries": [entry.model_dump() for entry in entries]}
-    handle = tempfile.NamedTemporaryFile(
-        "w", encoding="utf-8", dir=directory, delete=False, suffix=".tmp"
-    )
+    handle = tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=directory, delete=False, suffix=".tmp")
     try:
         json.dump(payload, handle, indent=2)
         handle.flush()
