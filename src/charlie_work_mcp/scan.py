@@ -2,11 +2,13 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+from .config import Config, load_config
 from .constants import CERT_WARN_DAYS
 from .fs import walk_repo
 from .gitmeta import blame_line_times, is_git_repo
 from .models import ToilItem, ToilKind
 from .scanners import dep_health, run_all
+from .suppress import apply_suppressions
 
 _BLAME_ENRICHED = {ToilKind.todo_rot, ToilKind.debug_leftover}
 _MAX_BLAME_FILES = 300
@@ -55,14 +57,17 @@ def scan_repo(
     extra_items: list[ToilItem] | None = None,
     now: datetime | None = None,
     online: bool = True,
+    config: Config | None = None,
 ) -> list[ToilItem]:
     reference = now or datetime.now(timezone.utc)
+    resolved_config = config or load_config(root)
     files = walk_repo(root)
     items = run_all(files)
     if online:
         items.extend(dep_health.scan(files, online=True))
     if extra_items:
         items.extend(extra_items)
+    items = apply_suppressions(items, files, resolved_config, root)
     _enrich_staleness(root, items, reference)
     for item in items:
         item.priority = compute_priority(item)

@@ -18,6 +18,7 @@ dependencies = [
 
 [project.scripts]
 charlie-work-mcp = "charlie_work_mcp.__main__:main"
+charlie-work = "charlie_work_mcp.cli:main"
 
 [project.optional-dependencies]
 dev = [

@@ -1,0 +1,6 @@
+[tool.charlie]
+exclude = ["evals/fixtures/**"]
+
+[tool.charlie.per-file-ignores]
+"src/charlie_work_mcp/scanners/**" = ["charlie/todo-rot"]
+"src/charlie_work_mcp/sarif.py" = ["charlie/todo-rot"]

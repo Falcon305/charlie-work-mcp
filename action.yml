@@ -1,0 +1,35 @@
+name: "Charlie Work"
+description: "Fail the build when a pull request introduces new high-severity toil."
+branding:
+  icon: "alert-triangle"
+  color: "yellow"
+inputs:
+  path:
+    description: "Repository root to scan."
+    default: "."
+  base:
+    description: "Base git ref to diff against. Defaults to the PR base branch."
+    default: ""
+  severity:
+    description: "Minimum severity that blocks the build."
+    default: ""
+  offline:
+    description: "Skip network dependency checks."
+    default: "false"
+runs:
+  using: "composite"
+  steps:
+    - uses: astral-sh/setup-uv@v5
+    - shell: bash
+      run: |
+        set -euo pipefail
+        BASE="${{ inputs.base }}"
+        if [ -z "$BASE" ] && [ -n "${{ github.base_ref }}" ]; then
+          BASE="origin/${{ github.base_ref }}"
+        fi
+        ARGS=()
+        [ -n "$BASE" ] && ARGS+=(--base "$BASE")
+        [ -n "${{ inputs.severity }}" ] && ARGS+=(--severity "${{ inputs.severity }}")
+        [ "${{ inputs.offline }}" = "true" ] && ARGS+=(--offline)
+        uvx --from git+https://github.com/Falcon305/charlie-work-mcp \
+          charlie-work gate "${{ inputs.path }}" "${ARGS[@]}"
