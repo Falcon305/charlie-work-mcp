@@ -19,10 +19,7 @@ _CASES = [
 
 async def _tool_schemas() -> list[dict]:
     tools = await mcp.list_tools()
-    return [
-        {"name": t.name, "description": t.description or "", "input_schema": t.inputSchema}
-        for t in tools
-    ]
+    return [{"name": t.name, "description": t.description or "", "input_schema": t.inputSchema} for t in tools]
 
 
 def _selected_tool(client, model: str, prompt: str, tools: list[dict]) -> str | None:
