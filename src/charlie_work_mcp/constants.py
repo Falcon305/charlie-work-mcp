@@ -63,6 +63,10 @@ TEXT_EXTENSIONS = {
     ".gradle",
     ".make",
     ".mk",
+    ".pem",
+    ".crt",
+    ".cer",
+    ".cert",
 }
 
 MAX_FILE_BYTES = 1_500_000

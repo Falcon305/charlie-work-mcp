@@ -1,0 +1,8 @@
+{
+  "name": "sample-app",
+  "version": "1.0.0",
+  "dependencies": {
+    "left-pad": "*",
+    "react": "^18.2.0"
+  }
+}
