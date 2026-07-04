@@ -1,0 +1,22 @@
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    properties:
+      charlieVoice:
+        type: string
+        enum: ["charlie", "off"]
+        default: "charlie"
+        description: "Set to off for flavor-free plain output."
+      githubToken:
+        type: string
+        description: "Optional GitHub token to fold in labeled issues and PRs."
+  commandFunction: |-
+    (config) => ({
+      command: "charlie-work-mcp",
+      args: [],
+      env: {
+        CHARLIE_VOICE: config.charlieVoice === "off" ? "off" : "charlie",
+        ...(config.githubToken ? { GITHUB_TOKEN: config.githubToken } : {})
+      }
+    })

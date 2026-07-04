@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="./assets/hero.svg" alt="Charlie Work — the MCP server that finds the work nobody wants to do" width="100%" />
+<img src="./assets/pepe-silvia.jpg" alt="Charlie in front of the Pepe Silvia conspiracy board" width="640" />
 
 # Charlie Work
 
@@ -132,4 +132,8 @@ Charlie Work is the first of a set of *It's Always Sunny*-flavored dev tools, ea
 
 ## License
 
-MIT. All artwork in this repo is original — no copyrighted material from the show is included.
+Code: MIT.
+
+The hero image is a still from *It's Always Sunny in Philadelphia* (© FX Networks), used here for
+identification and commentary. It is not covered by the MIT license and remains the property of its
+rights holder. An original vector rendition of the same scene ships at [`assets/hero.svg`](./assets/hero.svg).
