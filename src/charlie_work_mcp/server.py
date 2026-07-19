@@ -11,6 +11,7 @@ from . import history, scoring
 from .actions import fix_findings, next_action
 from .constants import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE
 from .fixers import build_fix
+from .gitmeta import detect_github_repo
 from .models import (
     Explanation,
     FixResult,
@@ -67,11 +68,16 @@ def _resolve_mode(mode: Mode | None) -> Mode:
     return "charlie"
 
 
-def _github_items(include_github: bool, github_repo: str | None) -> tuple[list[ToilItem], str | None]:
-    if not include_github or not github_repo:
+def _github_items(
+    include_github: bool, github_repo: str | None, repo: str = "."
+) -> tuple[list[ToilItem], str | None]:
+    if not include_github:
         return [], None
+    target = github_repo or detect_github_repo(repo)
+    if not target:
+        return [], "(github integration skipped: no github_repo given and no origin remote found)"
     try:
-        return fetch_labeled_issues(github_repo), None
+        return fetch_labeled_issues(target), None
     except GithubUnavailable as exc:
         return [], f"(github integration skipped: {exc})"
 
@@ -94,7 +100,7 @@ def charlie_scan_toil(
     resolved = _resolve_mode(mode)
     limit = max(1, min(limit, MAX_PAGE_SIZE))
     offset = max(0, offset)
-    extra, note = _github_items(include_github, github_repo)
+    extra, note = _github_items(include_github, github_repo, repo)
     everything = scan_repo(repo, kinds=kinds, extra_items=extra, online=online)
     total = len(everything)
     page = everything[offset : offset + limit]
@@ -199,7 +205,7 @@ def _reclaimed_minutes(entries: list[LedgerEntry]) -> dict[str, int]:
     ),
     annotations=ToolAnnotations(readOnlyHint=True, openWorldHint=True),
 )
-def charlie_summary(repo: str = ".", online: bool = False) -> Summary:
+def charlie_summary(repo: str = ".", online: bool = True) -> Summary:
     _, summary = summarize_repo(repo, online=online)
     hours = round(summary["total_minutes"] / 60, 1)
     report = (
@@ -214,7 +220,7 @@ def charlie_summary(repo: str = ".", online: bool = False) -> Summary:
     description="Explain why a specific finding (by its toil id) is real debt, with evidence and a fix.",
     annotations=ToolAnnotations(readOnlyHint=True, openWorldHint=True),
 )
-def charlie_explain(finding_id: str, repo: str = ".", online: bool = False) -> Explanation:
+def charlie_explain(finding_id: str, repo: str = ".", online: bool = True) -> Explanation:
     match = next((i for i in scan_repo(repo, online=online) if i.id == finding_id), None)
     if match is None:
         return Explanation(
@@ -253,7 +259,7 @@ def charlie_triage(repo: str = ".", top_n: int = 5, online: bool = True) -> Tria
     description="Record a toil snapshot and report how the toil budget has moved since last time.",
     annotations=ToolAnnotations(readOnlyHint=False, openWorldHint=True),
 )
-def charlie_trend(repo: str = ".", online: bool = False) -> TrendReport:
+def charlie_trend(repo: str = ".", online: bool = True) -> TrendReport:
     _, summary = summarize_repo(repo, online=online)
     history.record(repo, summary)
     delta = history.delta(repo)

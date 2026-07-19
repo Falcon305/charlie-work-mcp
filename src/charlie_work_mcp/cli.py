@@ -111,6 +111,29 @@ def _cmd_ledger(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_did_it(args: argparse.Namespace) -> int:
+    from datetime import UTC, datetime
+
+    from .models import LedgerEntry
+    from .persona import render_ledger
+
+    match = next((i for i in _scan(args.path, False) if i.id == args.toil_id), None)
+    entry = LedgerEntry(
+        toil_id=args.toil_id,
+        kind=match.kind.value if match else "unknown",
+        title=match.title if match else "cleared toil",
+        who=args.who,
+        at=datetime.now(UTC).isoformat(),
+        note=args.note,
+    )
+    entries = store.append_entry(args.path, entry)
+    counts = store.credit_counts(entries)
+    open_count = len(_scan(args.path, False))
+    mode = "plain" if args.plain else "charlie"
+    print(render_ledger(entries, counts, store.champion(counts), open_count, mode))
+    return 0
+
+
 def _cmd_install(args: argparse.Namespace) -> int:
     from .install import CLIENTS, guidance, write_project_config
 
@@ -210,6 +233,14 @@ def build_parser() -> argparse.ArgumentParser:
     _add_common(ledger)
     ledger.add_argument("--plain", action="store_true", help="Flavor-free output.")
     ledger.set_defaults(func=_cmd_ledger)
+
+    did = sub.add_parser("did-it", help="Record that you cleared a piece of toil, by its id.")
+    did.add_argument("toil_id", help="The toil id from a scan.")
+    did.add_argument("--who", required=True, help="Who cleared it.")
+    did.add_argument("--note", help="Optional note.")
+    did.add_argument("--path", default=".", help="Repository root.")
+    did.add_argument("--plain", action="store_true", help="Flavor-free output.")
+    did.set_defaults(func=_cmd_did_it)
 
     summary = sub.add_parser("summary", help="Show the toil budget: score, debt ratio, grade.")
     _add_common(summary)

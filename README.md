@@ -88,6 +88,21 @@ charlie-work summary                              # toil budget + A–E grade
     severity: "4"
 ```
 
+**As a scheduled watchman** — some toil is *time-based*: a cert quietly ticks toward expiry, a TODO ages, a new CVE lands against a dep you already shipped. A nightly scan catches it before it pages you:
+
+```yaml
+on:
+  schedule: [{ cron: "0 7 * * *" }]
+jobs:
+  charlie:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: uvx --from charlie-work-mcp charlie-work sarif -o charlie.sarif
+      - uses: github/codeql-action/upload-sarif@v3
+        with: { sarif_file: charlie.sarif }
+```
+
 > Until the PyPI release lands, replace `uvx charlie-work-mcp` with `uvx --from git+https://github.com/Falcon305/charlie-work-mcp charlie-work-mcp` (and likewise `--from git+…` for the CLI).
 
 ## Trustworthy detection (not regex theater)

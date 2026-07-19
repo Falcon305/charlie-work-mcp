@@ -1,11 +1,22 @@
 from __future__ import annotations
 
 import os
+import re
 import subprocess
+
+_REMOTE = re.compile(r"github\.com[:/]([^/]+/[^/\s]+?)(?:\.git)?$")
 
 
 def is_git_repo(root: str) -> bool:
     return os.path.isdir(os.path.join(root, ".git"))
+
+
+def detect_github_repo(root: str) -> str | None:
+    url = _run(root, ["remote", "get-url", "origin"])
+    if not url:
+        return None
+    match = _REMOTE.search(url.strip())
+    return match.group(1) if match else None
 
 
 def _run(root: str, args: list[str]) -> str | None:
