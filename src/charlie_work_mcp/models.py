@@ -55,6 +55,8 @@ class ToilItem(BaseModel):
     staleness_days: int | None = Field(default=None, description="Age or time-to-deadline in days when known.")
     source: str = Field(default="local", description="Where the finding came from: local or github.")
     priority: float = Field(default=0.0, description="Computed rank, higher means do it sooner.")
+    fixability: str = Field(default="manual", description="auto-safe, needs-review, or manual.")
+    patch: str | None = Field(default=None, description="A ready-to-apply unified diff, when Charlie can fix it.")
 
     def model_post_init(self, _context: object) -> None:
         if not self.rule_id:
@@ -116,6 +118,23 @@ class LedgerResult(BaseModel):
     credits: dict[str, int]
     minutes: dict[str, int] = Field(default_factory=dict)
     champion: str | None = None
+
+
+class NextAction(BaseModel):
+    report: str = Field(description="Why this is the next thing to do, in one human line.")
+    found: bool = Field(description="Whether there was any open toil to act on.")
+    item: ToilItem | None = Field(default=None, description="The single highest-priority item.")
+    fixability: str = Field(default="manual", description="auto-safe, needs-review, or manual.")
+    patch: str | None = Field(default=None, description="A ready-to-apply unified diff, when fixable.")
+    next_actions: list[str] = Field(default_factory=list, description="Concrete follow-up moves for the agent.")
+
+
+class FixResult(BaseModel):
+    report: str = Field(description="What Charlie can and can't safely fix here.")
+    patches: list[ToilItem] = Field(default_factory=list, description="Items carrying a ready-to-apply patch.")
+    manual: list[ToilItem] = Field(
+        default_factory=list, description="Items a human must handle (secrets, certs, ambiguous)."
+    )
 
 
 def make_id(kind: ToilKind, path: str, line: int | None, evidence: str) -> str:

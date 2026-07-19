@@ -135,6 +135,34 @@ def _cmd_install(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_next(args: argparse.Namespace) -> int:
+    from .actions import next_action
+
+    result = next_action(args.path, online=not args.offline)
+    if not result.found:
+        print(result.report)
+        return 0
+    print(f"{result.report} [{result.fixability}]")
+    if result.patch:
+        print()
+        print(result.patch, end="" if result.patch.endswith("\n") else "\n")
+    return 0
+
+
+def _cmd_fix(args: argparse.Namespace) -> int:
+    from .actions import fix_findings
+
+    result = fix_findings(args.path, finding_id=args.id, top_n=args.top, online=not args.offline)
+    print(f"# {result.report}")
+    for item in result.patches:
+        print(f"\n# {item.path}:{item.line or '?'}  [{item.fixability}]  {item.title}")
+        print(item.patch, end="" if (item.patch or "").endswith("\n") else "\n")
+    for item in result.manual:
+        location = f"{item.path}:{item.line}" if item.line else item.path
+        print(f"\n# manual: {location}  {item.title} — {item.fix or 'handle by hand'}")
+    return 0
+
+
 def _cmd_init(args: argparse.Namespace) -> int:
     from .rules import agents_block, upsert
 
@@ -190,6 +218,16 @@ def build_parser() -> argparse.ArgumentParser:
     trend = sub.add_parser("trend", help="Record a snapshot and show the toil-budget delta.")
     _add_common(trend)
     trend.set_defaults(func=_cmd_trend)
+
+    nxt = sub.add_parser("next", help="Print the single next best fix, with a ready-to-apply patch.")
+    _add_common(nxt)
+    nxt.set_defaults(func=_cmd_next)
+
+    fix = sub.add_parser("fix", help="Print unified-diff patches for fixable toil (pipe to git apply).")
+    _add_common(fix)
+    fix.add_argument("--id", help="Fix a specific finding id.")
+    fix.add_argument("--top", type=int, default=5, help="How many top items to consider (default 5).")
+    fix.set_defaults(func=_cmd_fix)
 
     install = sub.add_parser("install", help="Print or write the MCP config to wire Charlie into an AI agent.")
     install.add_argument(

@@ -8,11 +8,15 @@ from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
 from . import history, scoring
+from .actions import fix_findings, next_action
 from .constants import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE
+from .fixers import build_fix
 from .models import (
     Explanation,
+    FixResult,
     LedgerEntry,
     LedgerResult,
+    NextAction,
     ScanResult,
     Summary,
     ToilItem,
@@ -264,10 +268,46 @@ def charlie_trend(repo: str = ".", online: bool = False) -> TrendReport:
     return TrendReport(report=report, current=summary, delta=delta)
 
 
+@mcp.tool(
+    title="Charlie: the next thing to do",
+    description=(
+        "Return the single highest-priority piece of toil as an executable move: where it is, why it "
+        "matters (hotspot x severity), a ready-to-apply unified-diff patch when Charlie can fix it "
+        "safely, and the follow-up actions. Apply the patch yourself with `git apply` — Charlie never "
+        "writes your files."
+    ),
+    annotations=ToolAnnotations(readOnlyHint=True, openWorldHint=True),
+)
+def charlie_next(repo: str = ".", online: bool = True) -> NextAction:
+    return next_action(repo, online=online)
+
+
+@mcp.tool(
+    title="Charlie: fix it (patch, don't write)",
+    description=(
+        "Return unified-diff patches for fixable toil — by finding id, or the top N. Each patch is "
+        "labelled auto-safe (mechanical) or needs-review (changes behaviour). Secrets, certs, and "
+        "dependency bumps are surfaced for a human, never auto-patched. Charlie never edits files; "
+        "apply the diffs yourself with `git apply` or open a PR."
+    ),
+    annotations=ToolAnnotations(readOnlyHint=True, openWorldHint=True),
+)
+def charlie_fix(finding_id: str | None = None, repo: str = ".", top_n: int = 5, online: bool = True) -> FixResult:
+    return fix_findings(repo, finding_id=finding_id, top_n=top_n, online=online)
+
+
 @mcp.resource("toil://queue")
 def toil_queue_resource() -> str:
     items = scan_repo(".", online=False)
     return render_scan(items, len(items), 0, "plain")
+
+
+@mcp.resource("toil://item/{finding_id}")
+def toil_item_resource(finding_id: str) -> str:
+    match = next((i for i in scan_repo(".", online=False) if i.id == finding_id), None)
+    if match is None:
+        return f"No open finding with id {finding_id}."
+    return build_fix(match, ".").model_dump_json(indent=2)
 
 
 @mcp.prompt(title="Triage my toil")
@@ -276,6 +316,24 @@ def triage_toil(max_items: int = 5) -> str:
         f"Call charlie_triage with top_n={max_items}. For each item, decide keep or fix, give a "
         "one-line rationale and an effort size (S/M/L), then propose a concrete fix for the top "
         "three. Use charlie_explain if you need the evidence behind any item."
+    )
+
+
+@mcp.prompt(title="Charlie: fix the next thing")
+def fix_next() -> str:
+    return (
+        "Call charlie_next. If it returns a patch, show me the diff and a one-line summary of what it "
+        "does, apply it with git apply, run the tests, and report the result. If it's manual, explain "
+        "what a human needs to do. Then call charlie_next again for the one after it."
+    )
+
+
+@mcp.prompt(title="Charlie: pre-PR check")
+def pre_pr_check(base: str = "origin/main") -> str:
+    return (
+        f"Run the charlie-work gate against base '{base}' (or call charlie_scan_toil and compare to the "
+        "diff). List any NEW blocking toil this branch introduces, propose a fix for each via "
+        "charlie_fix, and don't let me open the PR until the new toil is cleared or explicitly waived."
     )
 
 

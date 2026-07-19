@@ -75,8 +75,9 @@ uvx --from charlie-work-mcp charlie-work init
 
 ```bash
 uvx --from charlie-work-mcp charlie-work scan     # the prioritized toil queue
+charlie-work next                                 # the single next best fix, as a patch
+charlie-work fix --top 5 | git apply              # patch the safe ones
 charlie-work summary                              # toil budget + A–E grade
-charlie-work sarif -o out.sarif                   # SARIF for GitHub code scanning
 ```
 
 **As a CI gate** — fail a PR only when it introduces *new* high-severity toil ("Clean as You Code"):
@@ -111,10 +112,25 @@ The difference from regex, in one line: the Python string `"pytest.mark.skip"` a
 
 Charlie ranks by **churn × complexity** (CodeScene-style): debt in a file edited 40× this quarter outranks the same debt in one untouched for years. `charlie-work summary` rolls it into a **toil budget** — total remediation minutes, a SQALE-style debt ratio, and an A–E grade. Google SRE says keep toil under 50%.
 
-## Agent-native tools
+## Not just a reporter — a doer
+
+Charlie returns **patches, not prose**. `charlie_next` hands the agent the single highest-value item — where it is, why it matters (hotspot × severity), and a **ready-to-apply unified diff** when it's safely fixable:
+
+```bash
+$ charlie-work next
+breakpoint() left in the code at pay.py:88 — severity 4, in a hotspot (2.1x). [auto-safe]
+--- a/pay.py
++++ b/pay.py
+@@ -85,7 +85,6 @@
+-    breakpoint()
+```
+
+Every patch is a diff you (or CI) apply with `git apply` — **the server never edits your files**. Fixes are labelled `auto-safe` (mechanical: delete a `breakpoint()`) or `needs-review` (changes behaviour: un-skip a test, delete a stale TODO). Secrets, certs, and dependency bumps are surfaced for a human, never auto-patched.
 
 | Tool | What it does |
 |------|--------------|
+| `charlie_next` | The single next best fix, as a patch + why + follow-up actions. |
+| `charlie_fix` | Unified-diff patches for a finding (or the top N), labelled auto-safe / needs-review. |
 | `charlie_scan_toil` | Prioritized, paginated toil queue (structured output). |
 | `charlie_summary` | Toil budget: score, debt ratio, A–E grade. |
 | `charlie_triage` | Top-N action plan for an agent to work through. |
@@ -122,7 +138,7 @@ Charlie ranks by **churn × complexity** (CodeScene-style): debt in a file edite
 | `charlie_trend` | Records a snapshot and reports the delta over time. |
 | `charlie_did_it` / `charlie_ledger` | The credit ledger — who cleared what, Champion of the Grease Trap. |
 
-Plus a `toil://queue` **resource** and a `triage_toil` **prompt**. Things a dashboard can't do: *"triage the top 3, explain why, and open PRs — then credit me in the ledger."*
+Plus `toil://queue` + `toil://item/{id}` **resources** and four **prompts** (slash commands in any client): `triage_toil`, `fix_next`, `pre_pr_check`, `charlie_rules`. Things a dashboard can't do: *"fix the next thing, run the tests, and credit me in the ledger."*
 
 ## Not a toy: token discipline + evals
 
