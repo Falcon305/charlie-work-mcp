@@ -1,6 +1,6 @@
 [project]
 name = "charlie-work-mcp"
-version = "0.2.0"
+version = "0.3.0"
 description = "An MCP server that surfaces (and dignifies) the toil in your repo — the un-fun, load-bearing maintenance work nobody else will do. This is Charlie Work."
 readme = "README.md"
 requires-python = ">=3.11"

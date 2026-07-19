@@ -2,7 +2,7 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-07-09/server.json",
   "name": "io.github.falcon305/charlie-work-mcp",
   "description": "Surfaces and dignifies the toil in your repo — flaky tests, expiring certs, dead flags, TODO rot, unpinned deps, unowned scripts — as a prioritized queue with a credit ledger.",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "repository": {
     "url": "https://github.com/Falcon305/charlie-work-mcp",
     "source": "github"
@@ -11,7 +11,7 @@
     {
       "registry_type": "pypi",
       "identifier": "charlie-work-mcp",
-      "version": "0.1.0",
+      "version": "0.3.0",
       "transport": {
         "type": "stdio"
       }

@@ -26,7 +26,25 @@ from .services.github import GithubUnavailable, fetch_labeled_issues
 
 Mode = Literal["charlie", "plain"]
 
-mcp = FastMCP("charlie-work")
+_INSTRUCTIONS = """Charlie Work finds and dignifies the toil in a repository — the un-fun, load-bearing
+maintenance nobody else will do: flaky/skipped/focused tests, TODO rot, expiring TLS certs, dead feature
+flags, unpinned/vulnerable/outdated dependencies, unowned runbooks, and stray debug statements.
+
+Typical workflow: call charlie_scan_toil (or charlie_triage for the top N) to see the prioritized queue,
+then charlie_next to get the single highest-value item as a ready-to-apply patch, or charlie_fix for a
+specific finding. Findings are ranked by git-hotspot x severity, so the top of the queue is where the
+team actually bleeds. Use charlie_explain for the evidence behind any finding.
+
+Fixes are patch-first: charlie_next and charlie_fix return a unified diff — this server never edits the
+user's files, so apply the diff yourself (git apply) or open a PR. Patches labelled auto-safe are
+mechanical; needs-review patches change behaviour and want a human glance. Secrets, certificates, and
+major dependency bumps are never auto-patched — surface them for a person.
+
+Each finding carries a confidence tier (verified, high, heuristic); a charlie.toml can exclude paths,
+raise the confidence floor, and suppress rules, and inline "# charlie: ignore[rule]" is respected. Set
+mode="plain" (or CHARLIE_VOICE=off) for flavour-free output suitable for CI."""
+
+mcp = FastMCP("charlie-work", instructions=_INSTRUCTIONS)
 
 _SCAN_DESCRIPTION = (
     "Scan a repository for toil — the un-fun, load-bearing maintenance work everyone ignores: "
@@ -258,4 +276,14 @@ def triage_toil(max_items: int = 5) -> str:
         f"Call charlie_triage with top_n={max_items}. For each item, decide keep or fix, give a "
         "one-line rationale and an effort size (S/M/L), then propose a concrete fix for the top "
         "three. Use charlie_explain if you need the evidence behind any item."
+    )
+
+
+@mcp.prompt(title="Charlie: rules for AGENTS.md")
+def charlie_rules() -> str:
+    from .rules import agents_block
+
+    return (
+        "Add this Charlie Work section to the repo's AGENTS.md (or CLAUDE.md) so every agent knows how "
+        "and when to use it, then keep it up to date:\n\n" + agents_block()
     )

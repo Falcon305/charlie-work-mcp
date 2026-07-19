@@ -19,36 +19,75 @@ The un-fun, load-bearing maintenance work everyone ignores until it bites: flaky
 
 The jokes are a **toggle, not a tax** — pass `mode="plain"` (or set `CHARLIE_VOICE=off`) and every response is flavor-free, paste-into-a-ticket clean. CI and SARIF output are always plain.
 
-## Three ways to run it
+## Use it with any agent
 
-**1. As an MCP server** — point Claude Desktop / Cursor / Claude Code at it:
+Charlie is a stdio MCP server, so it drops into **every** MCP client — Claude Code, Codex, Cursor, VS Code, Claude Desktop, Windsurf, Zed, Gemini, Cline. The universal config is one block:
 
 ```json
 {
   "mcpServers": {
-    "charlie-work": {
-      "command": "uvx",
-      "args": ["--from", "git+https://github.com/Falcon305/charlie-work-mcp", "charlie-work-mcp"]
-    }
+    "charlie-work": { "command": "uvx", "args": ["charlie-work-mcp"] }
   }
 }
 ```
 
-**2. As a CLI:**
+[![Add to Cursor](https://img.shields.io/badge/Add_to-Cursor-000?logo=cursor)](cursor://anysphere.cursor-deeplink/mcp/install?name=charlie-work&config=eyJjb21tYW5kIjogInV2eCIsICJhcmdzIjogWyJjaGFybGllLXdvcmstbWNwIl19)
+
+**Don't hand-write it — let Charlie wire himself in:**
 
 ```bash
-uvx --from git+https://github.com/Falcon305/charlie-work-mcp charlie-work scan
-charlie-work summary        # toil budget + A–E maintainability grade
-charlie-work sarif -o out.sarif
+uvx --from charlie-work-mcp charlie-work install --client cursor --write   # or: codex, claude-code, vscode, …
 ```
 
-**3. As a CI gate** — fail a PR only when it introduces *new* high-severity toil ("Clean as You Code"):
+`install` knows each client's dialect and prints (or, for project-local clients, `--write`s) the exact config. Run `install --client all` to see every one.
+
+<details><summary><b>Per-client config (copy-paste)</b></summary>
+
+**Claude Code** — `claude mcp add --transport stdio charlie-work -- uvx charlie-work-mcp` (or the block above in `.mcp.json`).
+
+**OpenAI Codex CLI** — `~/.codex/config.toml`:
+```toml
+[mcp_servers.charlie-work]
+command = "uvx"
+args = ["charlie-work-mcp"]
+```
+
+**Cursor** (`.cursor/mcp.json`), **Claude Desktop** (`claude_desktop_config.json`), **Windsurf**, **Gemini CLI**, **Cline** — the universal `mcpServers` block above.
+
+**VS Code** — `.vscode/mcp.json` uses `servers` (not `mcpServers`):
+```json
+{ "servers": { "charlie-work": { "type": "stdio", "command": "uvx", "args": ["charlie-work-mcp"] } } }
+```
+
+**Zed** — `settings.json` uses `context_servers`:
+```json
+{ "context_servers": { "charlie-work": { "source": "custom", "command": "uvx", "args": ["charlie-work-mcp"] } } }
+```
+</details>
+
+**Teach every agent the drill** — write a Charlie section into `AGENTS.md` (the cross-vendor rules file read by Codex, Cursor, Copilot, Gemini, Aider, Windsurf, Zed; Claude reads it too):
+
+```bash
+uvx --from charlie-work-mcp charlie-work init
+```
+
+**As a CLI:**
+
+```bash
+uvx --from charlie-work-mcp charlie-work scan     # the prioritized toil queue
+charlie-work summary                              # toil budget + A–E grade
+charlie-work sarif -o out.sarif                   # SARIF for GitHub code scanning
+```
+
+**As a CI gate** — fail a PR only when it introduces *new* high-severity toil ("Clean as You Code"):
 
 ```yaml
 - uses: Falcon305/charlie-work-mcp@master
   with:
     severity: "4"
 ```
+
+> Until the PyPI release lands, replace `uvx charlie-work-mcp` with `uvx --from git+https://github.com/Falcon305/charlie-work-mcp charlie-work-mcp` (and likewise `--from git+…` for the CLI).
 
 ## Trustworthy detection (not regex theater)
 

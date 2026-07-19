@@ -111,6 +111,41 @@ def _cmd_ledger(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_install(args: argparse.Namespace) -> int:
+    from .install import CLIENTS, guidance, write_project_config
+
+    if args.client == "all":
+        for key in CLIENTS:
+            print(guidance(key, args.transport, args.url))
+            print()
+        return 0
+    if args.client not in CLIENTS:
+        print(f"Unknown client '{args.client}'. Options: {', '.join(CLIENTS)}, all.")
+        return 2
+    if args.write:
+        try:
+            path = write_project_config(args.client, args.root, args.transport, args.url)
+        except ValueError as exc:
+            print(f"Charlie Work: {exc}.\n")
+            print(guidance(args.client, args.transport, args.url))
+            return 1
+        print(f"Charlie Work: wired Charlie into {args.client} at {path}. Restart the client to pick it up.")
+        return 0
+    print(guidance(args.client, args.transport, args.url))
+    return 0
+
+
+def _cmd_init(args: argparse.Namespace) -> int:
+    from .rules import agents_block, upsert
+
+    if args.print:
+        print(agents_block())
+        return 0
+    path, action = upsert(args.root, args.file)
+    print(f"Charlie Work: {action} the Charlie section in {path}. Every agent that reads it now knows the drill.")
+    return 0
+
+
 def _add_common(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("path", nargs="?", default=".", help="Repository root to scan.")
     parser.add_argument("--offline", action="store_true", help="Skip network dependency checks.")
@@ -155,6 +190,26 @@ def build_parser() -> argparse.ArgumentParser:
     trend = sub.add_parser("trend", help="Record a snapshot and show the toil-budget delta.")
     _add_common(trend)
     trend.set_defaults(func=_cmd_trend)
+
+    install = sub.add_parser("install", help="Print or write the MCP config to wire Charlie into an AI agent.")
+    install.add_argument(
+        "--client",
+        required=True,
+        help="codex, claude-code, claude-desktop, cursor, vscode, windsurf, zed, gemini, cline, or all.",
+    )
+    install.add_argument("--transport", choices=("stdio", "http"), default="stdio", help="Transport to configure.")
+    install.add_argument("--url", help="HTTP endpoint when --transport http.")
+    install.add_argument(
+        "--write", action="store_true", help="Write project-local config (Claude Code, Cursor, VS Code)."
+    )
+    install.add_argument("--root", default=".", help="Project root for --write.")
+    install.set_defaults(func=_cmd_install)
+
+    init = sub.add_parser("init", help="Write a Charlie section into AGENTS.md so any agent knows how to use it.")
+    init.add_argument("--root", default=".", help="Project root.")
+    init.add_argument("--file", default="AGENTS.md", help="File to write the block into (default AGENTS.md).")
+    init.add_argument("--print", action="store_true", help="Print the block instead of writing it.")
+    init.set_defaults(func=_cmd_init)
 
     return parser
 
